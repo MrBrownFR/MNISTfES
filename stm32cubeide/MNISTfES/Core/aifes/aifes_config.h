@@ -43,7 +43,8 @@
 
 #ifdef AIDEBUG_ENABLE_PRINTING
 
-    #define AISTRING_STORAGE_WRAPPER(S)     const char S[]  /**< Specifies the storage type of strings like logs or names */
+//    #define AISTRING_STORAGE_WRAPPER(S)     const char S[]  /**< Specifies the storage type of strings like logs or names */
+	#define AISTRING_STORAGE_WRAPPER(name, s)     const char name[] = s
 
     #define AIDEBUG_PRINT_MODULE_SPECS  /**< Enable printing of the module (layer, loss, optimizer) specifications */
     #define AIDEBUG_PRINT_ERROR_MESSAGES /**< Enable logging of error messages (with AILOG_E) */

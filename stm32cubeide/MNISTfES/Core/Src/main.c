@@ -18,11 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "app_x-cube-ai.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "aifes.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,7 +31,12 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#ifdef __GNUC__
+/* With GCC, small printf (option LD Linker->Libraries->Small printf     set to 'Yes') calls __io_putchar() */
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -109,7 +113,6 @@ int main(void)
   MX_SPI2_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
-  MX_X_CUBE_AI_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -118,9 +121,75 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  printf("=== AIfES ===\n");
+
+	  float input_data[] = {0.0f, 1.0f}; // Input  data for the XOR ANN (0.0 / 1.0)
+	  uint16_t input_shape[] = {1, 2};   //  Definition of the input shape
+
+	  // Creation of the input AIfES tensor with two dimensions and data type F32 (float32)
+	  aitensor_t input_tensor = AITENSOR_2D_F32(input_shape, input_data);
+
+	  // Definition of the input layer shape  (Must fit to the input tensor. The first dimension is the batch size.)
+	  uint16_t input_layer_shape[] = {1, 2};
+	  // Creation of the AIfES input layer
+	  ailayer_input_f32_t input_layer = AILAYER_INPUT_F32_M( /*input dimension=*/ 2,  /*input shape=*/ input_layer_shape);
+
+	  // Hidden layer weights
+	  float weights_data_dense_1[] = {-10.1164f, -8.4212f, 5.4396f, 7.297f, -7.6482f, 9.0155f};
+	  // Hidden layer bias weights
+	  float bias_data_dense_1[] = {-2.9653f,  2.3677f, -1.5968f};
+	  // Creation of the AIfES  hidden dense layer with 3 neurons
+	  ailayer_dense_f32_t dense_layer_1 = AILAYER_DENSE_F32_M( /*neurons=*/ 3,  /*weights=*/ weights_data_dense_1, /*bias=*/ bias_data_dense_1);
+
+	  ailayer_sigmoid_f32_t sigmoid_layer_1 = AILAYER_SIGMOID_F32_M();
+
+	  // Output dense  layer weights
+	  float weights_data_dense_2[] = {12.0305f, -6.5858f, 11.9371f};
+	  //Output dense layer  bias weights
+	  float bias_data_dense_2[] = {-5.4247f};
+	  // Creation of the AIfES  output dense layer with 1 neuron
+	  ailayer_dense_f32_t dense_layer_2 = AILAYER_DENSE_F32_M( /*neurons=*/ 1,  /*weights=*/ weights_data_dense_2, /*bias=*/ bias_data_dense_2);
+	  // Output layer activation function
+	  ailayer_sigmoid_f32_t sigmoid_layer_2 = AILAYER_SIGMOID_F32_M();
+
+
+	  aimodel_t model;  // AIfES model
+	  ailayer_t *x;     // Layer object from AIfES to connect the layers
+
+	  // Connect the layers to an AIfES model
+	  model.input_layer = ailayer_input_f32_default(&input_layer);
+	  x = ailayer_dense_f32_default(&dense_layer_1, model.input_layer);
+	  x = ailayer_sigmoid_f32_default(&sigmoid_layer_1, x);
+	  x = ailayer_dense_f32_default(&dense_layer_2, x);
+	  model.output_layer = ailayer_sigmoid_f32_default(&sigmoid_layer_2, x);
+	  aialgo_compile_model(&model); // Compile the AIfES model
+
+	  printf("--- Model structure ---\n");
+	  aialgo_print_model_structure(&model);
+	  printf("-----------------------\n");
+
+	  // Allocate memory for result and temporal data
+	  uint32_t memory_size = aialgo_sizeof_inference_memory(&model);
+	  char *memory_ptr = (char *) malloc(memory_size);
+	  // Schedule the memory over the model
+	  aialgo_schedule_inference_memory(&model, memory_ptr, memory_size);
+
+	  // Create an empty output tensor for the inference result
+	  uint16_t output_shape[2] = {1, 1};
+	  float output_data[1*1]; // Empty data array of size output_shape
+	  aitensor_t output_tensor = AITENSOR_2D_F32(output_shape, output_data);
+
+	  aialgo_inference_model(&model, &input_tensor, &output_tensor); // Inference /  forward pass
+
+	  printf("-> Results: \n");
+	  printf("input 1:\tinput 2:\treal output:\tcalculated output:\n");
+	  printf ("%f\t\t%f\t\t1.0\t\t%f\n", input_data[0], input_data[1], ((float *)output_tensor.data)[0]);
+
+	  free(memory_ptr);
+
+	  HAL_Delay(500);
     /* USER CODE END WHILE */
 
-  MX_X_CUBE_AI_Process();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -721,7 +790,12 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+PUTCHAR_PROTOTYPE  {
+	/* Place your implementation of fputc here */
+	/* e.g. write a character to the USART1 and Loop until the end of transmission */
+	HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
+	return ch;
+}
 /* USER CODE END 4 */
 
 /**
